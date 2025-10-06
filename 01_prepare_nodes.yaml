@@ -3,7 +3,7 @@
   hosts: k8s_all
   become: yes
   vars:
-    k8s_version: "1.28.5"
+    k8s_version: "1.28.15"
   tasks:
     - name: Ensure internet connectivity
       ansible.builtin.shell: |
