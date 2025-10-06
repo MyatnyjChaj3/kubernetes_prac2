@@ -5,6 +5,22 @@
   vars:
     k8s_version: "1.28.5"
   tasks:
+    - name: Ensure internet connectivity
+      ansible.builtin.shell: |
+        ping -c 4 8.8.8.8
+      register: ping_result
+      retries: 3
+      delay: 5
+      until: ping_result.rc == 0
+      ignore_errors: yes
+      args:
+        executable: /bin/bash
+
+    - name: Update APT cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
     - name: Disable swap
       ansible.builtin.shell: |
         swapoff -a
@@ -42,16 +58,20 @@
         state: present
         update_cache: yes
 
-    - name: Add Kubernetes GPG key
+    - name: Add Docker GPG key
       ansible.builtin.apt_key:
-        url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+        url: https://download.docker.com/linux/debian/gpg
         state: present
 
-    - name: Add Kubernetes repository
+    - name: Add Docker repository
       ansible.builtin.apt_repository:
-        repo: "deb https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+        repo: "deb [arch=amd64] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
         state: present
-        filename: kubernetes
+        filename: docker
+
+    - name: Update APT cache after adding Docker repository
+      ansible.builtin.apt:
+        update_cache: yes
 
     - name: Install containerd
       ansible.builtin.apt:
@@ -70,6 +90,17 @@
         dest: /etc/containerd/config.toml
         mode: '0644'
       notify: Restart containerd
+
+    - name: Add Kubernetes GPG key
+      ansible.builtin.apt_key:
+        url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+        state: present
+
+    - name: Add Kubernetes repository
+      ansible.builtin.apt_repository:
+        repo: "deb https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+        state: present
+        filename: kubernetes
 
     - name: Install Kubernetes packages
       ansible.builtin.apt:
