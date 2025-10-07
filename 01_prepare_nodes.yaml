@@ -42,44 +42,55 @@
         state: present
         update_cache: yes
 
-    - name: 5. Install containerd
-      ansible.builtin.apt:
-        name: containerd.io
-        state: present
-
-    - name: 6. Configure containerd with SystemdCgroup
-      ansible.builtin.shell: |
-        mkdir -p /etc/containerd
-        containerd config default | tee /etc/containerd/config.toml
-        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
-      changed_when: false
-
-    - name: 7. Restart and enable containerd service
-      ansible.builtin.systemd:
-        name: containerd
-        state: restarted
-        enabled: yes
-        daemon_reload: yes
-
-    - name: 8. Create directory for Kubernetes GPG key
+    # --- НОВЫЕ ЗАДАЧИ ДЛЯ РЕПОЗИТОРИЯ DOCKER ---
+    - name: 5. Create directory for APT keyrings if it does not exist
       ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
         mode: '0755'
 
-    - name: 9. Add Kubernetes GPG key
+    - name: 6. Add Docker's official GPG key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/debian/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        mode: '0644'
+        force: true
+
+    - name: 7. Add the Docker repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian {{ ansible_distribution_release }} stable"
+        state: present
+        filename: docker
+    # --- КОНЕЦ НОВЫХ ЗАДАЧ ---
+
+    - name: 8. Install containerd.io
+      ansible.builtin.apt:
+        name: containerd.io
+        state: present
+        update_cache: yes # Важно обновить кэш после добавления нового репозитория
+
+    - name: 9. Configure containerd with SystemdCgroup
+      ansible.builtin.shell: |
+        mkdir -p /etc/containerd
+        containerd config default | tee /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+      changed_when: false
+      notify: Restart containerd
+
+    # --- Kubernetes Repo and Packages ---
+    - name: 10. Add Kubernetes GPG key
       ansible.builtin.get_url:
         url: https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0] }}.{{ k8s_version.split('.')[1] }}/deb/Release.key
         dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
         mode: '0644'
 
-    - name: 10. Add Kubernetes APT repository (new official repo)
+    - name: 11. Add Kubernetes APT repository
       ansible.builtin.apt_repository:
         repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v{{ k8s_version.split('.')[0] }}.{{ k8s_version.split('.')[1] }}/deb/ /"
         state: present
         filename: kubernetes
 
-    - name: 11. Install kubelet, kubeadm, and kubectl
+    - name: 12. Install kubelet, kubeadm, and kubectl
       ansible.builtin.apt:
         name:
           - kubelet={{ k8s_version }}-*
@@ -89,7 +100,7 @@
         update_cache: yes
         allow_downgrade: yes
 
-    - name: 12. Hold Kubernetes packages to prevent auto-updates
+    - name: 13. Hold Kubernetes packages to prevent auto-updates
       ansible.builtin.dpkg_selections:
         name: "{{ item }}"
         selection: hold
@@ -97,3 +108,11 @@
         - kubelet
         - kubeadm
         - kubectl
+
+  handlers:
+    - name: Restart containerd
+      ansible.builtin.systemd:
+        name: containerd
+        state: restarted
+        enabled: yes
+        daemon_reload: yes
