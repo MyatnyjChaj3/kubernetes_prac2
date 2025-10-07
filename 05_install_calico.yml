@@ -1,7 +1,7 @@
 ---
 - name: Install Calico network plugin
   hosts: k8s_master
-  become: no  # Выполняем команды от имени пользователя admin
+  become: yes  # Выполняем команды от имени пользователя admin
   environment:
     KUBECONFIG: "/home/admin/.kube/config"  # Указываем конфигурацию kubectl
   tasks:
