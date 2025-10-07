@@ -1,0 +1,29 @@
+---
+- name: Setup kubectl access on ansible-control node
+  hosts: k8s_master
+
+  tasks:
+    - name: 1. Copy kubeconfig from master to ansible-control node
+      ansible.builtin.fetch:
+        src: "/home/admin/.kube/config"
+        dest: "~/.kube/config"
+        flat: yes
+.
+    - name: 2. Install kubectl on ansible-control node
+      ansible.builtin.apt:
+        name: kubectl
+        state: present
+        update_cache: yes
+      delegate_to: localhost # 'localhost' - это синоним control node
+      become: yes
+
+    - name: 3. Verify kubectl access from ansible-control node
+      ansible.builtin.command: kubectl get nodes
+      register: kubectl_nodes
+      delegate_to: localhost
+      changed_when: false # Эта команда не меняет состояние системы
+
+    - name: 4. Display nodes info
+      ansible.builtin.debug:
+        msg: "{{ kubectl_nodes.stdout_lines }}"
+      delegate_to: localhost
