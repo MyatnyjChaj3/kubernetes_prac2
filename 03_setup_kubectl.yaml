@@ -23,16 +23,16 @@
         name: kubectl
         state: present
         update_cache: yes
-      delegate_to: ansible-control
+      delegate_to: admin
 
     - name: 4. Verify kubectl access
       ansible.builtin.command: kubectl get nodes
       register: kubectl_nodes
       changed_when: false
-      delegate_to: ansible-control
+      delegate_to: admin
       become: no
 
     - name: 5. Display nodes info
       ansible.builtin.debug:
         msg: "{{ kubectl_nodes.stdout_lines }}"
-      delegate_to: ansible-control
+      delegate_to: admin
