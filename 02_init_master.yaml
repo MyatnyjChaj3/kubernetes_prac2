@@ -4,7 +4,7 @@
   vars:
     k8s_version: "1.33.5"
     pod_network_cidr: "10.244.0.0/16"
-    user: "debianuser"
+    user: "admin"
   tasks:
     - name: Initialize cluster with kubeadm
       ansible.builtin.shell: |
