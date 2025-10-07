@@ -16,7 +16,6 @@
         src: /home/admin/.kube/config
         dest: /tmp/kubeconfig/
         flat: yes
-      delegate_to: ansible-control
 
     - name: Update kubeconfig with master node IP
       ansible.builtin.replace:
