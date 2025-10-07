@@ -1,0 +1,15 @@
+---
+- name: Setup kubectl access on ansible-control node
+  hosts: k8s_master
+  become: yes
+
+  tasks:
+    - name: Verify kubectl access
+      ansible.builtin.shell: |
+        kubectl get nodes
+      register: kubectl_nodes
+      delegate_to: ansible-control
+
+    - name: Display nodes info
+      ansible.builtin.debug:
+        msg: "{{ kubectl_nodes.stdout }}"
