@@ -1,54 +1,49 @@
 ---
 - name: Setup kubectl on control node
-  hosts: k8s_master
+  hosts: k8s_master         # Целимся на мастер, чтобы забрать с него конфиг и его IP
   become: yes
+  gather_facts: yes         # Убедимся, что Ansible собрал информацию о ноде (включая IP)
 
   tasks:
-    - name: 1. Read kubeconfig file from master node into a variable
+    - name: 1. Read kubeconfig from master node
       ansible.builtin.slurp:
         src: /etc/kubernetes/admin.conf
       register: kubeconfig_slurped
 
-    - name: 2. Ensure .kube directory exists on control node
+    - name: 2. Ensure .kube directory exists on the control node (localhost)
       delegate_to: localhost
       become: no
       ansible.builtin.file:
-        path: ~/.kube
+        path: "~/.kube"
         state: directory
         mode: '0755'
 
-    - name: 3. Create kubeconfig file on control node from variable
+    - name: 3. Create correct kubeconfig on the control node
       delegate_to: localhost
       become: no
       ansible.builtin.copy:
-        content: "{{ kubeconfig_slurped['content'] | b64decode }}"
-        dest: ~/.kube/config
+        # 1. Берем содержимое admin.conf, декодируем его из base64
+        # 2. С помощью регулярного выражения заменяем адрес сервера на актуальный IP мастер-ноды
+        content: "{{ kubeconfig_slurped['content'] | b64decode | regex_replace('server: https://.*:6443', 'server: https://' + ansible_default_ipv4.address + ':6443') }}"
+        dest: "~/.kube/config"
         mode: '0600'
 
-    - name: 4. Update server IP in the kubeconfig on control node
-      delegate_to: localhost
-      ansible.builtin.replace:
-        path: ~/.kube/config
-        regexp: '^\s*server: https://.*:6443'
-        replace: "    server: https://{{ hostvars['k8s-master-01']['ansible_default_ipv4']['address'] }}:6443"
-
-    - name: 5. Install kubectl on control node if needed
+    - name: 4. Install kubectl on control node if needed
       delegate_to: localhost
       become: yes
-      ansible.builtin.copy:
-        # Заменяем IP-адрес в исходном файле на правильный IP мастера и записываем результат
-        content: "{{ kubeconfig_decoded | regex_replace('server: https://.*:6443', 'server: https://' + master_ip + ':6443') }}"
-        dest: "{{ lookup('env', 'HOME') }}/.kube/config"
-        mode: '0600'
+      ansible.builtin.apt:
+        name: kubectl
+        state: present
+        update_cache: yes
 
-    - name: 6. Verify kubectl access to the cluster
+    - name: 5. Verify kubectl access to the cluster
       delegate_to: localhost
       become: no
       ansible.builtin.command: kubectl get nodes
       register: kubectl_nodes
-      changed_when: false
+      changed_when: false # Команда проверки не меняет состояние системы
 
-    - name: 7. Display cluster nodes info
+    - name: 6. Display cluster nodes info
       delegate_to: localhost
       ansible.builtin.debug:
         msg: "{{ kubectl_nodes.stdout_lines }}"
