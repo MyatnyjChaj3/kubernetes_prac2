@@ -7,7 +7,7 @@
     - name: Copy kubeconfig from master to ansible-control node
       ansible.builtin.fetch:
         src: /home/admin/.kube/config
-        dest: /tmp/kubeconfig
+        dest: /tmp/kubeconfig/config
         flat: yes
       delegate_to: ansible-control
 
