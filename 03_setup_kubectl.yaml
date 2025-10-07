@@ -7,24 +7,30 @@
     - name: Copy kubeconfig from master to ansible-control node
       ansible.builtin.fetch:
         src: /home/admin/.kube/config
-        dest: /home/admin/.kube/config
+        dest: /tmp/kubeconfig
         flat: yes
       delegate_to: ansible-control
 
     - name: Update kubeconfig with master node IP
       ansible.builtin.replace:
-        path: /home/admin/.kube/config
+        path: /tmp/kubeconfig
         regexp: 'server: https://127\.0\.0\.1:6443'
         replace: "server: https://{{ hostvars['k8s-master-01']['ansible_default_ipv4']['address'] }}:6443"
       delegate_to: ansible-control
 
+    - name: Move kubeconfig to ~/.kube/config
+      ansible.builtin.shell: |
+        mkdir -p ~/.kube
+        mv /tmp/kubeconfig ~/.kube/config
+        chmod 600 ~/.kube/config
+      delegate_to: ansible-control
     - name: Set correct permissions on kubeconfig
       ansible.builtin.file:
         path: /home/admin/.kube/config
         owner: admin
         group: admin
         mode: '0600'
-      delegate_to: ansible-control
+
 
     - name: Install kubectl on ansible-control node
       ansible.builtin.apt:
