@@ -1,0 +1,33 @@
+---
+- name: Reset Kubernetes cluster state on all nodes
+  hosts: k8s_all
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: 1. Reset kubeadm
+      ansible.builtin.command: kubeadm reset -f
+      register: reset_result
+      changed_when: "'removed' in reset_result.stdout"
+      failed_when: false # Игнорируем ошибки, если сбрасывать нечего
+
+    - name: 2. Clean up CNI configuration files
+      ansible.builtin.file:
+        path: /etc/cni/net.d
+        state: absent
+
+    - name: 3. Clean up kubelet working directory
+      ansible.builtin.file:
+        path: /var/lib/kubelet
+        state: absent
+
+    - name: 4. Restart containerd to clear any residual state
+      ansible.builtin.systemd:
+        name: containerd
+        state: restarted
+      
+    - name: 5. Remove join command temp file from master
+      delegate_to: "{{ groups['k8s_master'][0] }}"
+      run_once: true
+      ansible.builtin.file:
+        path: /tmp/k8s_join_command.txt
+        state: absent
