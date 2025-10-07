@@ -4,6 +4,13 @@
   become: yes
 
   tasks:
+    - name: Ensure /tmp/kubeconfig directory exists on ansible-control
+      ansible.builtin.file:
+        path: /tmp/kubeconfig
+        state: directory
+        mode: '0755'
+      delegate_to: ansible-control
+
     - name: Copy kubeconfig from master to ansible-control node
       ansible.builtin.fetch:
         src: /home/admin/.kube/config
@@ -24,13 +31,6 @@
         mv /tmp/kubeconfig/config ~/.kube/config
         chmod 600 ~/.kube/config
       delegate_to: ansible-control
-    - name: Set correct permissions on kubeconfig
-      ansible.builtin.file:
-        path: /home/admin/.kube/config
-        owner: admin
-        group: admin
-        mode: '0600'
-
 
     - name: Install kubectl on ansible-control node
       ansible.builtin.apt:
@@ -40,8 +40,7 @@
       delegate_to: ansible-control
 
     - name: Verify kubectl access
-      ansible.builtin.shell: |
-        kubectl get nodes
+      ansible.builtin.shell: kubectl get nodes
       register: kubectl_nodes
       delegate_to: ansible-control
 
