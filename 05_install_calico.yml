@@ -1,0 +1,49 @@
+---
+- name: Install Calico network plugin
+  hosts: k8s_master
+  become: no  # Выполняем команды от имени пользователя admin
+  environment:
+    KUBECONFIG: "/home/admin/.kube/config"  # Указываем конфигурацию kubectl
+  tasks:
+    - name: Download and apply Calico manifest
+      ansible.builtin.shell: |
+        kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/calico.yaml
+      register: calico_apply
+      failed_when: calico_apply.rc != 0
+      changed_when: calico_apply.rc == 0
+
+    - name: Wait for Calico pods to be ready
+      ansible.builtin.shell: |
+        kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n kube-system --timeout=300s
+      register: calico_wait
+      failed_when: calico_wait.rc != 0
+      changed_when: false
+
+    - name: Wait for all system pods to be ready
+      ansible.builtin.shell: |
+        kubectl wait --for=condition=ready pod --all -n kube-system --timeout=300s
+      register: system_pods_wait
+      failed_when: system_pods_wait.rc != 0
+      changed_when: false
+
+    - name: Check cluster status
+      ansible.builtin.shell: |
+        kubectl get nodes -o wide
+      register: cluster_status
+      failed_when: cluster_status.rc != 0
+      changed_when: false
+
+    - name: Display cluster status
+      ansible.builtin.debug:
+        msg: "{{ cluster_status.stdout_lines }}"
+
+    - name: Check system pods
+      ansible.builtin.shell: |
+        kubectl get pods -n kube-system
+      register: system_pods
+      failed_when: system_pods.rc != 0
+      changed_when: false
+
+    - name: Display system pods
+      ansible.builtin.debug:
+        msg: "{{ system_pods.stdout_lines }}"
