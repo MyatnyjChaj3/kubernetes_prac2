@@ -35,10 +35,11 @@
     - name: 5. Install kubectl on control node if needed
       delegate_to: localhost
       become: yes
-      ansible.builtin.apt:
-        name: kubectl
-        state: present
-        update_cache: yes
+      ansible.builtin.copy:
+        # Заменяем IP-адрес в исходном файле на правильный IP мастера и записываем результат
+        content: "{{ kubeconfig_decoded | regex_replace('server: https://.*:6443', 'server: https://' + master_ip + ':6443') }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+        mode: '0600'
 
     - name: 6. Verify kubectl access to the cluster
       delegate_to: localhost
@@ -46,7 +47,6 @@
       ansible.builtin.command: kubectl get nodes
       register: kubectl_nodes
       changed_when: false
-      failed_when: kubectl_nodes.rc != 0
 
     - name: 7. Display cluster nodes info
       delegate_to: localhost
