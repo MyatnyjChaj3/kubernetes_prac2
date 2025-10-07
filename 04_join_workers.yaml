@@ -1,0 +1,26 @@
+---
+- name: Join Worker Nodes to the Cluster
+  hosts: k8s_workers  # Сразу работаем с воркерами
+  become: yes
+
+  tasks:
+    # Эта задача выполнится только ОДИН РАЗ для всей группы воркеров.
+    # Она подключается к МАСТЕРУ, чтобы забрать команду для подключения.
+    - name: 1. Get the join command from the master node
+      ansible.builtin.command: cat /tmp/k8s_join_command.txt
+      delegate_to: "{{ groups['k8s_master'][0] }}" # Указываем, что команду надо выполнить на мастере
+      run_once: true                               # Гарантирует, что команда выполнится лишь раз, а не для каждого воркера
+      changed_when: false
+      register: join_command_from_master
+
+    # Эта задача выполняется на КАЖДОМ воркере.
+    # Она использует команду, которую мы получили в предыдущей задаче.
+    - name: 2. Join node to the cluster using the fetched command
+      ansible.builtin.shell: "{{ join_command_from_master.stdout }}"
+      args:
+        creates: /etc/kubernetes/kubelet.conf # Это гарантирует, что нода не будет пытаться подключиться повторно
+      register: join_result
+
+    - name: 3. Display join result
+      ansible.builtin.debug:
+        msg: "Node {{ inventory_hostname }} has successfully joined the cluster."
