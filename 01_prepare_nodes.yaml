@@ -68,6 +68,7 @@
         name: containerd.io
         state: present
         update_cache: yes # Важно обновить кэш после добавления нового репозитория
+      when: inventory_hostname in groups['k8s_workers']
 
     - name: 9. Configure containerd with SystemdCgroup
       ansible.builtin.shell: |
