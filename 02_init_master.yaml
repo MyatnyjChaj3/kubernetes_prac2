@@ -14,7 +14,7 @@
         --pod-network-cidr {{ pod_network_cidr }}
         --service-cidr 10.96.0.0/12
         --kubernetes-version v{{ k8s_version }}
-        --apiserver-advertise-address {{ ansible_default_ipv4.address }}
+        --apiserver-advertise-address 192.168.1.6
       args:
         creates: /etc/kubernetes/admin.conf
 
