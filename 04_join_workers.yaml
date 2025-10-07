@@ -2,8 +2,7 @@
 # Сначала получаем команду присоединения с мастера ОДИН РАЗ
 - name: Get join command from master
   hosts: k8s_master
-  become: no
-  gather_facts: no
+  become: yes
   tasks:
     - name: Read join command from the file on master
       ansible.builtin.slurp:
