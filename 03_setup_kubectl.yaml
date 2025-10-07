@@ -8,7 +8,7 @@
         src: "/home/admin/.kube/config"
         dest: "~/.kube/config"
         flat: yes
-.
+
     - name: 2. Install kubectl on ansible-control node
       ansible.builtin.apt:
         name: kubectl
