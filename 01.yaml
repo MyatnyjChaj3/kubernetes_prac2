@@ -6,7 +6,7 @@
     k8s_version: "1.33.5"
 
   tasks:
-     - name: 12. Install kubelet, kubeadm, and kubectl
+    - name: 12. Install kubelet, kubeadm, and kubectl
       ansible.builtin.apt:
         name:
           - kubelet={{ k8s_version }}-*
