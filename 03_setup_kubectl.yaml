@@ -1,48 +1,68 @@
 ---
-- name: Setup kubectl access on ansible-control node
+- name: Setup kubectl on control node
   hosts: k8s_master
   become: yes
 
   tasks:
-    - name: Ensure /tmp/kubeconfig directory exists on ansible-control
+    - name: 1. Create temporary directory on control node
+      delegate_to: localhost
       ansible.builtin.file:
         path: /tmp/kubeconfig
         state: directory
-        mode: '0755'
-      delegate_to: ansible-control
+        mode: '0700'
 
-    - name: Copy kubeconfig from master to ansible-control node
+    - name: 2. Copy kubeconfig from master to control node
       ansible.builtin.fetch:
-        src: /home/admin/.kube/config
-        dest: /tmp/kubeconfig/
+        src: /etc/kubernetes/admin.conf
+        dest: /tmp/kubeconfig/config
         flat: yes
 
-    - name: Update kubeconfig with master node IP
+    - name: 3. Update server IP in the fetched kubeconfig
+      delegate_to: localhost
       ansible.builtin.replace:
         path: /tmp/kubeconfig/config
-        regexp: 'server: https://127\.0\.0\.1:6443'
-        replace: "server: https://{{ hostvars['k8s-master-01']['ansible_default_ipv4']['address'] }}:6443"
-      delegate_to: ansible-control
+        regexp: '^\s*server: https://.*:6443'
+        replace: "    server: https://{{ hostvars['k8s-master-01']['ansible_default_ipv4']['address'] }}:6443"
 
-    - name: Move kubeconfig to ~/.kube/config
-      ansible.builtin.shell: |
-        mkdir -p ~/.kube
-        mv /tmp/kubeconfig/config ~/.kube/config
-        chmod 600 ~/.kube/config
-      delegate_to: ansible-control
+    - name: 4. Ensure .kube directory exists on control node for the current user
+      delegate_to: localhost
+      become: no
+      ansible.builtin.file:
+        path: ~/.kube
+        state: directory
+        mode: '0755'
 
-    - name: Install kubectl on ansible-control node
+    - name: 5. Move kubeconfig to its final destination and set permissions
+      delegate_to: localhost
+      become: no
+      ansible.builtin.copy:
+        remote_src: yes
+        src: /tmp/kubeconfig/config
+        dest: ~/.kube/config
+        mode: '0600'
+
+    - name: 6. Install kubectl on control node if needed
+      delegate_to: localhost
+      become: yes
       ansible.builtin.apt:
         name: kubectl
         state: present
         update_cache: yes
-      delegate_to: ansible-control
 
-    - name: Verify kubectl access
-      ansible.builtin.shell: kubectl get nodes
+    - name: 7. Verify kubectl access to the cluster
+      delegate_to: localhost
+      become: no
+      ansible.builtin.command: kubectl get nodes
       register: kubectl_nodes
-      delegate_to: ansible-control
+      changed_when: false
 
-    - name: Display nodes info
+    - name: 8. Display cluster nodes info
+      delegate_to: localhost
       ansible.builtin.debug:
-        msg: "{{ kubectl_nodes.stdout }}"
+        msg: "{{ kubectl_nodes.stdout_lines }}"
+
+    - name: 9. Clean up temporary directory on control node
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: /tmp/kubeconfig
+        state: absent
