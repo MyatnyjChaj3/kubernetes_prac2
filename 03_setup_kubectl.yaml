@@ -14,13 +14,13 @@
     - name: 2. Copy kubeconfig from master to control node
       ansible.builtin.fetch:
         src: /etc/kubernetes/admin.conf
-        dest: /tmp/kubeconfig/config
+        dest: /tmp/kubeconfig/
         flat: yes
 
     - name: 3. Update server IP in the fetched kubeconfig
       delegate_to: localhost
       ansible.builtin.replace:
-        path: /tmp/kubeconfig/config
+        path: /tmp/kubeconfig/admin.conf
         regexp: '^\s*server: https://.*:6443'
         replace: "    server: https://{{ hostvars['k8s-master-01']['ansible_default_ipv4']['address'] }}:6443"
 
@@ -37,7 +37,7 @@
       become: no
       ansible.builtin.copy:
         remote_src: yes
-        src: /tmp/kubeconfig/config
+        src: /tmp/kubeconfig/admin.conf
         dest: ~/.kube/config
         mode: '0600'
 
