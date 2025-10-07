@@ -1,43 +1,34 @@
 ---
-# Сначала получаем команду присоединения с мастера ОДИН РАЗ
-- name: Get join command from master
-  hosts: k8s_master
+- name: Join Worker Nodes to Kubernetes Cluster
+  hosts: k8s_all # Выполняем на всех хостах, чтобы передать факт
   become: yes
+  gather_facts: no # Отключаем, т.к. факты не нужны на этом этапе
+
   tasks:
-    - name: Read join command from the file on master
-      ansible.builtin.slurp:
-        src: /tmp/k8s_join_command.txt
-      register: join_command_slurped
+    # Эта задача выполнится ТОЛЬКО на мастере
+    - name: 1. Read join command from the file on master
+      ansible.builtin.command: cat /tmp/k8s_join_command.txt
+      register: join_command_raw
+      when: inventory_hostname in groups['k8s_master']
 
-    - name: Store join command as a fact
+    # Эта задача сохранит команду в переменную, доступную всем хостам
+    - name: 2. Store join command as a fact
       ansible.builtin.set_fact:
-        # Декодируем команду и сохраняем ее в переменную,
-        # которая будет доступна для других хостов
-        k8s_join_command: "{{ join_command_slurped.content | b64decode }}"
+        k8s_join_command: "{{ hostvars[groups['k8s_master'][0]]['join_command_raw'].stdout }}"
+      when: inventory_hostname in groups['k8s_master']
 
-# Теперь присоединяем все воркеры, используя сохраненную команду
-- name: Join worker nodes to the cluster
+- name: Execute Join Command on Workers
   hosts: k8s_workers
   become: yes
+
   tasks:
-    - name: 1. Join node to the cluster
-      ansible.builtin.command: "{{ hostvars['k8s-master-01']['k8s_join_command'] }}"
+    - name: 3. Join node to the cluster
+      ansible.builtin.shell: "{{ hostvars[groups['k8s_master'][0]]['k8s_join_command'] }}"
       args:
-        # Это гарантирует, что команда выполнится только если нода еще не в кластере
+        # Команда выполнится, только если нода еще не в кластере
         creates: /etc/kubernetes/kubelet.conf
       register: join_result
 
-    # Проверяем, что нода появилась в выводе kubectl на мастере
-    - name: 2. Verify node has joined from the master
-      delegate_to: k8s-master-01
-      become: no
-      ansible.builtin.command: "kubectl get node {{ inventory_hostname }}"
-      register: node_status
-      retries: 20
-      delay: 10
-      until: node_status.rc == 0
-      changed_when: false
-
-    - name: 3. Display join result
+    - name: 4. Display join result
       ansible.builtin.debug:
         msg: "Node {{ inventory_hostname }} has successfully joined the cluster."
