@@ -1,26 +1,36 @@
 ---
 - name: Join Worker Nodes to the Cluster
-  hosts: k8s_workers  # Сразу работаем с воркерами
+  hosts: k8s_workers
   become: yes
+  # Упорядочиваем выполнение, чтобы первый хост в инвентаре всегда был первым
+  order: inventory
 
   tasks:
-    # Эта задача выполнится только ОДИН РАЗ для всей группы воркеров.
-    # Она подключается к МАСТЕРУ, чтобы забрать команду для подключения.
     - name: 1. Get the join command from the master node
       ansible.builtin.command: cat /tmp/k8s_join_command.txt
-      delegate_to: "{{ groups['k8s_master'][0] }}" # Указываем, что команду надо выполнить на мастере
-      run_once: true                               # Гарантирует, что команда выполнится лишь раз, а не для каждого воркера
+      delegate_to: "{{ groups['k8s_master'][0] }}"
+      run_once: true
       changed_when: false
       register: join_command_from_master
 
-    # Эта задача выполняется на КАЖДОМ воркере.
-    # Она использует команду, которую мы получили в предыдущей задаче.
-    - name: 2. Join node to the cluster using the fetched command
-      ansible.builtin.shell: "{{ join_command_from_master.stdout }}"
+    # --- ШАГ ДИАГНОСТИКИ ---
+    # Эта задача покажет нам, что именно было прочитано из файла.
+    # Если здесь в выводе будет пусто, значит проблема в предыдущем шаге (02_initialize_cluster.yml)
+    - name: 2. (DEBUG) Display the fetched join command
+      run_once: true
+      ansible.builtin.debug:
+        msg: "Fetched command string is --> {{ join_command_from_master.stdout }} <--"
+
+    # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ---
+    - name: 3. Join node to the cluster using the fetched command
+      # Мы явно указываем Ansible:
+      # "Возьми переменную 'join_command_from_master' с самого первого хоста ('groups['k8s_workers'][0]') в группе k8s_workers,
+      # потому что задача с run_once зарегистрировала ее именно там".
+      ansible.builtin.shell: "{{ hostvars[groups['k8s_workers'][0]]['join_command_from_master'].stdout }}"
       args:
-        creates: /etc/kubernetes/kubelet.conf # Это гарантирует, что нода не будет пытаться подключиться повторно
+        creates: /etc/kubernetes/kubelet.conf
       register: join_result
 
-    - name: 3. Display join result
+    - name: 4. Display join result
       ansible.builtin.debug:
         msg: "Node {{ inventory_hostname }} has successfully joined the cluster."
